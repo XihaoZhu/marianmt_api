@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
-from app.translator import load_model, translate
+from app.translator import ensure_model_loaded, translate
 import time
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+import logging
 
-
+logging.basicConfig(level=logging.INFO)
 
 request_log = {}
 
@@ -27,9 +29,10 @@ def check_rate_limit(ip: str):
     request_log[ip].append(now)
 
 @asynccontextmanager
+
 async def lifespan(app: FastAPI):
     print("App starting... (model should be loaded here)")
-    load_model()
+    ensure_model_loaded()
     yield
     
     print("App shutting down...")
@@ -39,6 +42,13 @@ app = FastAPI(lifespan=lifespan)
 class TranslateRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=500)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():
@@ -47,8 +57,9 @@ def read_root():
 @app.post("/translate")
 def translate_text(request: TranslateRequest, req: Request):
     
-    ip=req.client.host
+    ensure_model_loaded()
 
+    ip=req.client.host
     check_rate_limit(ip)
     
     try:

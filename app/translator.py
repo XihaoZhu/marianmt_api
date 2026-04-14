@@ -1,6 +1,7 @@
 from transformers import MarianMTModel, MarianTokenizer
 import torch
 import re
+import threading
 
 
 MAX_LENGTH = 256
@@ -10,10 +11,15 @@ MODEL_NAME = "Helsinki-NLP/opus-mt-en-zh"
 tokenizer = None
 model = None
 
-def load_model():
+model_lock = threading.Lock()
+
+def ensure_model_loaded():
     global tokenizer, model
-    tokenizer = MarianTokenizer.from_pretrained(MODEL_NAME)
-    model = MarianMTModel.from_pretrained(MODEL_NAME)
+    if model is None or tokenizer is None:
+        with model_lock:
+            if model is None:
+                tokenizer = MarianTokenizer.from_pretrained(MODEL_NAME)
+                model = MarianMTModel.from_pretrained(MODEL_NAME)
 
 def is_mostly_english(text: str) -> bool:
     letters = re.findall(r"[A-Za-z]", text)
